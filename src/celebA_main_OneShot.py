@@ -33,7 +33,7 @@ def main(hparams):
         # for beta in hparams.beta_ls:
         
         for ri in range(hparams.num_experiments):
-            A_outer = utils.get_outer_A(hparams) # Created the random matric A
+            A_outer = utils.get_outer_A(hparams)#/np.sqrt(hparams.num_outer_measurements) # Created the random matric A
             for ni in range(len(hparams.noise_std_ls)):
                 x_hats_dict = {}
                 for hparams.method in hparams.method_ls: 
@@ -49,9 +49,9 @@ def main(hparams):
                     
                     noise_batch = hparams.noise_std * np.random.randn(hparams.batch_size, hparams.num_outer_measurements)
                     if hparams.nonlinear_model == '1bit':
-                        y_batch_outer =np.sign(np.matmul(x_batch, A_outer)+noise_batch) # # Multiplication of A and X followed by quantization on 4 levels  /LA.norm(x_batch, axis=(1),keepdims=True)     
+                        y_batch_outer =np.sign(np.matmul(x_batch/LA.norm(x_batch, axis=(1),keepdims=True), A_outer)+noise_batch) # # Multiplication of A and X followed by quantization on 4 levels  /LA.norm(x_batch, axis=(1),keepdims=True)     
                     elif hparams.nonlinear_model == 'cubic':
-                        y_batch_outer =(np.matmul(x_batch, A_outer))**3+noise_batch    
+                        y_batch_outer =(np.matmul(x_batch/LA.norm(x_batch, axis=(1),keepdims=True), A_outer))**3+noise_batch    
 
                     z_opt_batch = np.random.randn(hparams.batch_size, 20) #Input to the generator of the GAN
                     for hparams.method in hparams.method_ls:                
@@ -128,23 +128,10 @@ def main(hparams):
                             tf.reset_default_graph()
                             estimators = utils.get_estimators(hparams)
                             measurement_losses, l2_losses = utils.load_checkpoints(hparams)
-                            estimator = estimators[hparams.model_type]
-                            x_hat_batch = estimator(A_outer, y_batch_outer, hparams)  
-                            x_main_batch = x_hat_batch 
-                        elif hparams.method == 'Passive':
-                            gamma = np.sqrt(np.log(hparams.n_input)/hparams.num_outer_measurements)
-                            aty = np.matmul(A_outer[np.newaxis,:,:],y_batch_outer[:,:,np.newaxis]).reshape(hparams.batch_size,-1)/hparams.num_outer_measurements
-                            norminif=np.amax(np.abs(aty),axis=1)
-                            x_hat_batch = np.zeros_like(aty)
-                            x_main_batch = x_hat_batch 
-                            for bi in range(0,hparams.batch_size):
-                                if norminif[bi] < gamma :
-                                    x_hat_batch[bi:bi+1,:] = np.zeros_like(aty[bi:bi+1,:])
-
-                                else:
-                                    x_hat_batch[bi:bi+1,:] = np.sign(aty[bi:bi+1,:])*(np.maximum(np.abs(aty[bi:bi+1,:])-gamma,0))
-                                    x_hat_batch[bi:bi+1,:]=x_hat_batch[bi:bi+1,:]/LA.norm(x_hat_batch[bi:bi+1,:], axis=(1),keepdims=True)*LA.norm(x_batch[bi:bi+1,:], axis=(1),keepdims=True)
-      
+                            estimator = estimators[hparams.model_type]                                                   
+                            # hparams.mloss2_weight=1.0/hparams.num_outer_measurements
+                            x_hat_batch = estimator(A_outer/np.sqrt(hparams.num_outer_measurements), y_batch_outer/np.sqrt(hparams.num_outer_measurements), hparams)    
+                                                       
                             x_main_batch = x_hat_batch 
                                     
                         elif hparams.method == 'Lasso-W':
@@ -163,7 +150,7 @@ def main(hparams):
                             
         
                         else :
-                            print('The method %s doesn\'t exist, please use PPower, Power, TPower'%hparams.method)                
+                            print('The method %s doesn\'t exist, please use OneShot, BIPG, PGD, CSGM, Lasso-W'%hparams.method)                
                         
 
 
@@ -172,11 +159,6 @@ def main(hparams):
                         print('x_hat_batch inner',x_hat_batch.shape,x_hat_batch.min(),x_hat_batch.max())
                         
         
-                            
-                        # x_main_batch = x_main_batch*LA.norm(x_batch, axis=(1),keepdims=True)
-                        # x_main_batch = np.clip(x_main_batch,-1.0,1.0)
-                        # x_hat_batch =   x_main_batch  
-                        dist = np.linalg.norm(x_batch-x_main_batch)/12288
 
                 
                  
@@ -214,29 +196,27 @@ def main(hparams):
                                 print('mean measurement loss = {0}'.format(mean_m_loss))
                                 print('mean l2 loss = {0}'.format(mean_l2_loss))
                     
-                        if hparams.image_matrix > 0:
+                if hparams.image_matrix > 0:
+                    if not os.path.exists('res/'):
+                        os.mkdir('res/')
+                    outputdir = 'res/nlcsg_%s_%s/'%(hparams.dataset, hparams.nonlinear_model)
+                    if not os.path.exists(outputdir):
+                        os.mkdir(outputdir)
 
-                            outputdir = 'res/nlcsg_%s_%s/'%(hparams.dataset, hparams.nonlinear_model)
-                            if not os.path.exists(outputdir):
-                                os.mkdir(outputdir)
-
-                hparams.savepath=outputdir+'%s_%s_m_%d_sig_%0.3f_r_%d.png'%(hparams.dataset, hparams.nonlinear_model, hparams.num_outer_measurements,hparams.noise_std,ri)  
-                
-
-                utils.image_matrix_mls(xs_dict, x_hats_dict, view_image, hparams)
-                img_rec_ls=[]
-                for mi in hparams.method_ls:
-                    img_rec_ls = img_rec_ls+[np.stack([vi for vi in x_hats_dict[mi].values()] , axis=0)]
+                    hparams.savepath=outputdir+'%s_%s_m_%d_sig_%0.3f_r_%d.png'%(hparams.dataset, hparams.nonlinear_model, hparams.num_outer_measurements,hparams.noise_std,ri)  
                     
-                np.savez(hparams.savepath[:-4]+'.npz',img_gd=np.stack([vi for vi in xs_dict.values()] , axis=0),img_rec=np.stack(img_rec_ls, axis=0))
-                np.savez(hparams.savepath[:-4]+'_mea.npz',img_gd=np.stack([vi for vi in xs_dict.values()], axis=0),mea=np.stack([vi for vi in y_dict.values()] , axis=0),A=A_outer)
+    
+                    utils.image_matrix_mls(xs_dict, x_hats_dict, view_image, hparams)
+                    img_rec_ls=[]
+                    for mi in hparams.method_ls:
+                        img_rec_ls = img_rec_ls+[np.stack([vi for vi in x_hats_dict[mi].values()] , axis=0)]
+                        
+                    np.savez(hparams.savepath[:-4]+'.npz',img_gd=np.stack([vi for vi in xs_dict.values()] , axis=0),img_rec=np.stack(img_rec_ls, axis=0))
+                    np.savez(hparams.savepath[:-4]+'_mea.npz',img_gd=np.stack([vi for vi in xs_dict.values()], axis=0),mea=np.stack([vi for vi in y_dict.values()] , axis=0),A=A_outer)
         # meai=meai+1
     np.savez(outputdir+'%s_%s_time_elapsed.npz'%(hparams.dataset, hparams.nonlinear_model),time_elapsed=time_elapsed)
 
-                        # Warn the user that some things were not processsed
-                        # if len(x_batch_dict) > 0:
-                        #     print('\nDid NOT process last {} images because they did not fill up the last batch.'.format(len(x_batch_dict)))
-                        #     print('Consider rerunning lazily with a smaller batch size.')
+
             
     
 

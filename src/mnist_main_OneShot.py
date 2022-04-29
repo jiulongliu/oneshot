@@ -42,9 +42,9 @@ def main(hparams):
                 hparams.noise_std = hparams.noise_std_ls[ni]
                 noise_batch = hparams.noise_std * np.random.randn(hparams.batch_size, hparams.num_outer_measurements)
                 if hparams.nonlinear_model == '1bit':
-                    y_batch_outer =np.sign(np.matmul(x_batch, A_outer)+noise_batch) # # Multiplication of A and X followed by quantization on 4 levels  /LA.norm(x_batch, axis=(1),keepdims=True)     
+                    y_batch_outer =np.sign(np.matmul(x_batch/LA.norm(x_batch, axis=(1),keepdims=True), A_outer)+noise_batch) # # Multiplication of A and X followed by quantization on 4 levels  /LA.norm(x_batch, axis=(1),keepdims=True)     
                 elif hparams.nonlinear_model == 'cubic':
-                    y_batch_outer =(np.matmul(x_batch, A_outer))**3+noise_batch               
+                    y_batch_outer =(np.matmul(x_batch/LA.norm(x_batch, axis=(1),keepdims=True), A_outer))**3+noise_batch               
   
                 x_hats_dict = {}
                 y_dict = {}
@@ -109,8 +109,9 @@ def main(hparams):
                         tf.reset_default_graph()
                         estimators = utils.get_estimators(hparams)
                         measurement_losses, l2_losses = utils.load_checkpoints(hparams)
-                        estimator = estimators[hparams.model_type]
-                        x_hat_batch = estimator(A_outer, y_batch_outer, hparams)                             
+                        estimator = estimators[hparams.model_type]                       
+                        # hparams.mloss2_weight=1.0/hparams.num_outer_measurements
+                        x_hat_batch = estimator(A_outer/np.sqrt(hparams.num_outer_measurements), y_batch_outer/np.sqrt(hparams.num_outer_measurements), hparams)                                                                              
                         x_main_batch = x_hat_batch                              
                     elif hparams.method == 'Lasso':
                         hparams.model_type='lasso'
@@ -135,14 +136,9 @@ def main(hparams):
                         
     
                     else :
-                        print('The method %s doesn\'t exist, please use PPower, Power, TPower'%hparams.method)
+                        print('The method %s doesn\'t exist, please use OneShot, BIPG, PGD, CSGM, Lasso'%hparams.method)
                                 
                                 
-
-            
-            
-                    
-                    # dist = np.linalg.norm(x_batch-x_main_batch)/784
         
                     for i, key in enumerate(x_batch_dict.keys()):
                         x = xs_dict[key]
@@ -180,7 +176,9 @@ def main(hparams):
                             print('mean l2 loss = {0}'.format(mean_l2_loss))
                 
                 if hparams.image_matrix > 0:
-                    outputdir = 'res/nlcsg_%s_%s_sup/'%(hparams.dataset, hparams.nonlinear_model)
+                    if not os.path.exists('res/'):
+                        os.mkdir('res/')                    
+                    outputdir = 'res/nlcsg_%s_%s/'%(hparams.dataset, hparams.nonlinear_model)
                     if not os.path.exists(outputdir):
                         os.mkdir(outputdir)
                     hparams.savepath=outputdir+'%s_%s_m_%d_sig_%0.3f_r_%d.png'%(hparams.dataset, hparams.nonlinear_model, hparams.num_outer_measurements,hparams.noise_std,ri)
