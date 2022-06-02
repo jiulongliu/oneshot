@@ -129,8 +129,8 @@ def main(hparams):
                             estimators = utils.get_estimators(hparams)
                             measurement_losses, l2_losses = utils.load_checkpoints(hparams)
                             estimator = estimators[hparams.model_type]                                                   
-                            # hparams.mloss2_weight=1.0/hparams.num_outer_measurements
-                            x_hat_batch = estimator(A_outer/np.sqrt(hparams.num_outer_measurements), y_batch_outer/np.sqrt(hparams.num_outer_measurements), hparams)    
+                            hparams.mloss2_weight=1.0/hparams.num_outer_measurements
+                            x_hat_batch = estimator(A_outer, y_batch_outer, hparams)    
                                                        
                             x_main_batch = x_hat_batch 
                                     
