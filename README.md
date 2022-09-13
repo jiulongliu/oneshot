@@ -22,6 +22,7 @@ We provide the guideline to run our OneShot on the MNIST and celebA datasets.
 
 ### Run wavelet_basis.py to generate the wavelet basis for Lasso-W
 cd src
+
 python wavelet_basis.py
 
 ### Run our OneShot and the compared methods(Lasso, CSGM, BIPG, OneShot) on the MNIST dataset for 1bit measurements 
