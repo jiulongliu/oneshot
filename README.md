@@ -25,6 +25,9 @@ cd src
 
 python wavelet_basis.py
 
+### Download the pretrained DCGAN model from
+https://drive.google.com/drive/folders/163Hf1jwJS7hw4r0D8bV-JH-0nmhbX7hx
+
 ### Run our OneShot and the compared methods(Lasso, CSGM, BIPG, OneShot) on the MNIST dataset for 1bit measurements 
 
 cd src
