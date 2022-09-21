@@ -32,7 +32,7 @@ def main(hparams):
         utils.setup_checkpointing(hparams)  
         # for beta in hparams.beta_ls:
         
-        for ri in range(hparams.num_experiments):
+        for ri in range(0,hparams.num_experiments):
             A_outer = utils.get_outer_A(hparams)#/np.sqrt(hparams.num_outer_measurements) # Created the random matric A
             for ni in range(len(hparams.noise_std_ls)):
                 x_hats_dict = {}
@@ -53,7 +53,7 @@ def main(hparams):
                     elif hparams.nonlinear_model == 'cubic':
                         y_batch_outer =(np.matmul(x_batch/LA.norm(x_batch, axis=(1),keepdims=True), A_outer))**3+noise_batch    
 
-                    z_opt_batch = np.random.randn(hparams.batch_size, 20) #Input to the generator of the GAN
+                    z_opt_batch = np.random.randn(hparams.batch_size, 100) #Input to the generator of the GAN
                     for hparams.method in hparams.method_ls:                
 
 
@@ -72,23 +72,10 @@ def main(hparams):
                             x_est_batch=x_est_batch/LA.norm(x_est_batch, axis=(1),keepdims=True)*LA.norm(x_batch, axis=(1),keepdims=True)
                             # z_opt_batch = np.random.randn(hparams.batch_size, 20) #Input to the generator of the GAN
                             x_hat_batch = estimator(x_est_batch, z_opt_batch, hparams)
+                            # x_hat_batch=x_hat_batch/LA.norm(x_hat_batch, axis=(1),keepdims=True)
                             x_main_batch = x_hat_batch
                             
-                            hparams.num_random_restarts  = 1
-                        elif hparams.method == 'GD':
-                            hparams.model_type='dcgan'
-                            hparams.model_types=['dcgan']
-                            tf.reset_default_graph()
-                            estimators = utils.get_estimators(hparams)
-                            measurement_losses, l2_losses = utils.load_checkpoints(hparams)
-                            x_main_batch = 0.0 * x_batch
-                            hparams.max_update_iter=100
-                            for k in range(maxiter):
-                 
-                                x_est_batch = x_main_batch + hparams.outer_learning_rate/hparams.num_outer_measurements * (np.matmul((y_batch_outer - (np.matmul(x_main_batch, A_outer))), A_outer.T))
-
-                                x_hat_batch = x_est_batch
-                                x_main_batch = x_hat_batch                             
+                            hparams.num_random_restarts  = 1                           
                             
                         elif hparams.method == 'BIPG':
                             hparams.model_type='dcgan'
@@ -104,6 +91,7 @@ def main(hparams):
 
                                 estimator = estimators['dcgan']
                                 x_hat_batch = estimator(x_est_batch, z_opt_batch, hparams) # Projectin on the GAN
+                                # x_hat_batch=x_hat_batch/LA.norm(x_hat_batch, axis=(1),keepdims=True)
                                 x_main_batch = x_hat_batch                           
                         elif hparams.method == 'PGD':
                             hparams.max_update_iter=100
@@ -116,9 +104,10 @@ def main(hparams):
         
                             for k in range(maxiter):
                                 x_est_batch = x_main_batch + hparams.outer_learning_rate/hparams.num_outer_measurements * (np.matmul((y_batch_outer - (np.matmul(x_main_batch, A_outer))), A_outer.T))    
-                                x_est_batch=x_est_batch/LA.norm(x_est_batch, axis=(1),keepdims=True)*LA.norm(x_batch, axis=(1),keepdims=True)
+                                # x_est_batch=x_est_batch/LA.norm(x_est_batch, axis=(1),keepdims=True)#*LA.norm(x_batch, axis=(1),keepdims=True)
                                 estimator = estimators['dcgan']
                                 x_hat_batch = estimator(x_est_batch, z_opt_batch, hparams) # Projectin on the GAN
+                                # x_hat_batch=x_hat_batch/LA.norm(x_hat_batch, axis=(1),keepdims=True)
                                 x_main_batch = x_hat_batch
                         elif hparams.method == 'CSGM':
                             hparams.max_update_iter=100
@@ -129,9 +118,12 @@ def main(hparams):
                             estimators = utils.get_estimators(hparams)
                             measurement_losses, l2_losses = utils.load_checkpoints(hparams)
                             estimator = estimators[hparams.model_type]                                                   
-                            hparams.mloss2_weight=1.0/hparams.num_outer_measurements
-                            x_hat_batch = estimator(A_outer, y_batch_outer, hparams)    
-                                                       
+                            # hparams.mloss2_weight=1.0/hparams.num_outer_measurements
+                            if hparams.nonlinear_model == '1bit':
+                                x_hat_batch = estimator(A_outer/np.sqrt(hparams.num_outer_measurements), y_batch_outer, hparams)  
+                            elif hparams.nonlinear_model == 'cubic':
+                                x_hat_batch = estimator(A_outer/np.sqrt(hparams.num_outer_measurements), y_batch_outer/(np.sqrt(hparams.num_outer_measurements)), hparams)  
+                            # x_hat_batch=x_hat_batch/LA.norm(x_hat_batch, axis=(1),keepdims=True)
                             x_main_batch = x_hat_batch 
                                     
                         elif hparams.method == 'Lasso-W':
@@ -145,6 +137,7 @@ def main(hparams):
                             estimator = estimators['lasso-wavelet']
                                                    
                             x_hat_batch = estimator(A_outer,y_batch_outer, hparams) # Projectin on the GAN
+                            # x_hat_batch=x_hat_batch/LA.norm(x_hat_batch, axis=(1),keepdims=True)
                             x_main_batch = x_hat_batch
                                 
                             
@@ -156,10 +149,11 @@ def main(hparams):
 
                         
                         
-                        print('x_hat_batch inner',x_hat_batch.shape,x_hat_batch.min(),x_hat_batch.max())
+                        # print('x_hat_batch inner',x_hat_batch.shape,x_hat_batch.min(),x_hat_batch.max())
                         
         
-
+                        # x_hat_batch=x_hat_batch/LA.norm(x_hat_batch, axis=(1),keepdims=True)*LA.norm(x_batch, axis=(1),keepdims=True)
+                        # x_main_batch = x_hat_batch  
                 
                  
                         for i, key_ in enumerate(x_batch_dict.keys()):
@@ -197,9 +191,9 @@ def main(hparams):
                                 print('mean l2 loss = {0}'.format(mean_l2_loss))
                     
                 if hparams.image_matrix > 0:
-                    if not os.path.exists('res/'):
-                        os.mkdir('res/')
-                    outputdir = 'res/nlcsg_%s_%s/'%(hparams.dataset, hparams.nonlinear_model)
+                    if not os.path.exists('res_release/'):
+                        os.mkdir('res_release/')
+                    outputdir = 'res_release/nlcsg_%s_%s/'%(hparams.dataset, hparams.nonlinear_model)
                     if not os.path.exists(outputdir):
                         os.mkdir(outputdir)
 
@@ -212,9 +206,9 @@ def main(hparams):
                         img_rec_ls = img_rec_ls+[np.stack([vi for vi in x_hats_dict[mi].values()] , axis=0)]
                         
                     np.savez(hparams.savepath[:-4]+'.npz',img_gd=np.stack([vi for vi in xs_dict.values()] , axis=0),img_rec=np.stack(img_rec_ls, axis=0))
-                    np.savez(hparams.savepath[:-4]+'_mea.npz',img_gd=np.stack([vi for vi in xs_dict.values()], axis=0),mea=np.stack([vi for vi in y_dict.values()] , axis=0),A=A_outer)
+                    # np.savez(hparams.savepath[:-4]+'_mea.npz',img_gd=np.stack([vi for vi in xs_dict.values()], axis=0),mea=np.stack([vi for vi in y_dict.values()] , axis=0),A=A_outer)
         # meai=meai+1
-    np.savez(outputdir+'%s_%s_time_elapsed.npz'%(hparams.dataset, hparams.nonlinear_model),time_elapsed=time_elapsed)
+    # np.savez(outputdir+'%s_%s_time_elapsed.npz'%(hparams.dataset, hparams.nonlinear_model),time_elapsed=time_elapsed)
 
 
             
@@ -251,7 +245,7 @@ if __name__ == '__main__':
                     help='number of measurements') #type=int, default=500, help='number of gaussian measurements(outer)')
     PARSER.add_argument('--beta-ls', metavar='N', type=float, default=[300], nargs='+',
                     help='list of beta') #type=int, default=500, help='number of gaussian measurements(outer)')
-    PARSER.add_argument('--method-ls', metavar='N', type=str, default='PPower', nargs='+', help='PPower,Power,TPower')
+    PARSER.add_argument('--method-ls', metavar='N', type=str, default='OneShot', nargs='+', help='Lasso-W, CSGM, PGD, OneShot')
     
     # Model
     PARSER.add_argument('--num-experiments', type=int, default=10, help='number of experiments')    
@@ -272,7 +266,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--outer-learning-rate', type=float, default=1.0, help='learning rate of outer loop GD')
     PARSER.add_argument('--max-outer-iter', type=int, default=30, help='maximum no. of iterations for outer loop GD')
     # LASSO specific hparams
-    PARSER.add_argument('--lmbd', type=float, default=0.02, help='lambda : regularization parameter for LASSO')
+    PARSER.add_argument('--lmbd', type=float, default=0.05, help='lambda : regularization parameter for LASSO')
     PARSER.add_argument('--lasso-solver', type=str, default='sklearn', help='Solver for LASSO')
     # Output
     PARSER.add_argument('--lazy', action='store_true', help='whether the evaluation is lazy')
