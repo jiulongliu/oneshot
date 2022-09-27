@@ -69,6 +69,7 @@ def main(hparams):
                         x_est_batch=x_est_batch/LA.norm(x_est_batch, axis=(1),keepdims=True)*LA.norm(x_batch, axis=(1),keepdims=True)
                         # z_opt_batch = np.random.randn(hparams.batch_size, 20) #Input to the generator of the GAN
                         x_hat_batch, z_opt_batch = estimator(x_est_batch, z_opt_batch, hparams)
+                        # x_hat_batch=x_hat_batch/LA.norm(x_hat_batch, axis=(1),keepdims=True)
                         x_main_batch = x_hat_batch
                     elif hparams.method == 'BIPG':
                         # x_hats_dict = {'vae': {}}
@@ -85,7 +86,9 @@ def main(hparams):
                             
                             estimator = estimators['vae']
                             x_hat_batch, z_opt_batch = estimator(x_est_batch, z_opt_batch, hparams) # Projectin on the GAN
-                            x_main_batch = x_hat_batch
+                            # x_hat_batch=x_hat_batch/LA.norm(x_hat_batch, axis=(1),keepdims=True)     
+                            x_main_batch = x_hat_batch 
+                            
                     elif hparams.method == 'PGD':
                         # x_hats_dict = {'vae': {}}
                         x_main_batch = 0.0 * x_batch
@@ -101,7 +104,9 @@ def main(hparams):
 
                             estimator = estimators['vae']                            
                             x_hat_batch, z_opt_batch = estimator(x_est_batch, z_opt_batch, hparams) # Projectin on the GAN
-                            x_main_batch = x_hat_batch                            
+                               
+                            # x_hat_batch=x_hat_batch/LA.norm(x_hat_batch, axis=(1),keepdims=True)     
+                            x_main_batch = x_hat_batch 
                     elif hparams.method == 'CSGM':
                         hparams.num_measurements = hparams.num_outer_measurements
                         hparams.model_type='csgm'
@@ -110,9 +115,14 @@ def main(hparams):
                         estimators = utils.get_estimators(hparams)
                         measurement_losses, l2_losses = utils.load_checkpoints(hparams)
                         estimator = estimators[hparams.model_type]                       
-                        hparams.mloss2_weight=1.0/hparams.num_outer_measurements
-                        x_hat_batch = estimator(A_outer, y_batch_outer, hparams)                                                                              
-                        x_main_batch = x_hat_batch                              
+                        # hparams.mloss2_weight=1.0/hparams.num_outer_measurements
+                        if hparams.nonlinear_model == '1bit':
+                            x_hat_batch = estimator(A_outer/np.sqrt(hparams.num_outer_measurements), y_batch_outer, hparams)  
+                        elif hparams.nonlinear_model == 'cubic':
+                            x_hat_batch = estimator(A_outer/np.sqrt(hparams.num_outer_measurements), y_batch_outer/(np.sqrt(hparams.num_outer_measurements)), hparams)     
+                        # x_hat_batch=x_hat_batch/LA.norm(x_hat_batch, axis=(1),keepdims=True)                                                                          
+                        x_main_batch = x_hat_batch       
+                        
                     elif hparams.method == 'Lasso':
                         hparams.model_type='lasso'
                         hparams.model_types=['lasso']
@@ -131,14 +141,15 @@ def main(hparams):
                             x_est_batch = x_main_batch + hparams.outer_learning_rate * (np.matmul((y_batch_outer - (np.matmul(x_main_batch, A_outer))), A_outer.T)) 
                             estimator = estimators['lasso']
                             x_hat_batch = estimator(x_est_batch,y_batch_outer, A_outer, hparams) # Projectin on the GAN
-                        x_main_batch = x_hat_batch
+                            x_main_batch = x_hat_batch
                             
                         
     
                     else :
                         print('The method %s doesn\'t exist, please use OneShot, BIPG, PGD, CSGM, Lasso'%hparams.method)
                                 
-                                
+                    # x_hat_batch=x_hat_batch/LA.norm(x_hat_batch, axis=(1),keepdims=True)*LA.norm(x_batch, axis=(1),keepdims=True)
+                    # x_main_batch = x_hat_batch                                  
         
                     for i, key in enumerate(x_batch_dict.keys()):
                         x = xs_dict[key]
@@ -176,9 +187,9 @@ def main(hparams):
                             print('mean l2 loss = {0}'.format(mean_l2_loss))
                 
                 if hparams.image_matrix > 0:
-                    if not os.path.exists('res/'):
-                        os.mkdir('res/')                    
-                    outputdir = 'res/nlcsg_%s_%s/'%(hparams.dataset, hparams.nonlinear_model)
+                    if not os.path.exists('res_release/'):
+                        os.mkdir('res_release/')                  
+                    outputdir = 'res_release/nlcsg_%s_%s/'%(hparams.dataset, hparams.nonlinear_model)
                     if not os.path.exists(outputdir):
                         os.mkdir(outputdir)
                     hparams.savepath=outputdir+'%s_%s_m_%d_sig_%0.3f_r_%d.png'%(hparams.dataset, hparams.nonlinear_model, hparams.num_outer_measurements,hparams.noise_std,ri)
@@ -188,7 +199,7 @@ def main(hparams):
                         img_rec_ls = img_rec_ls+[np.stack([vi for vi in x_hats_dict[mi].values()] , axis=0)]
                         
                     np.savez(hparams.savepath[:-4]+'.npz',img_gd=np.stack([vi for vi in xs_dict.values()] , axis=0),img_rec=np.stack(img_rec_ls, axis=0))
-                    np.savez(hparams.savepath[:-4]+'_mea.npz',img_gd=np.stack([vi for vi in xs_dict.values()], axis=0),mea=np.stack([vi for vi in y_dict.values()] , axis=0),A=A_outer)
+                    # np.savez(hparams.savepath[:-4]+'_mea.npz',img_gd=np.stack([vi for vi in xs_dict.values()], axis=0),mea=np.stack([vi for vi in y_dict.values()] , axis=0),A=A_outer)
       
     np.savez(outputdir+'%s_%s_time_elapsed.npz'%(hparams.dataset, hparams.nonlinear_model),time_elapsed=time_elapsed)        
         
